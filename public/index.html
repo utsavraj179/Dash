@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login or register</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="shell">
+  <section class="card">
+    <h1>Welcome</h1>
+    <p class="sub">Use your Discord User ID. The bot will DM you a one-time code.</p>
+
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" aria-selected="true" data-mode="login">Login</button>
+      <button type="button" role="tab" aria-selected="false" data-mode="register">Register</button>
+    </div>
+
+    <form id="form" novalidate>
+      <label for="uid">Discord User ID</label>
+      <input class="field" id="uid" inputmode="numeric" autocomplete="off" maxlength="20" placeholder="123456789012345678">
+      <p class="err" id="err" role="alert"></p>
+      <button class="btn" id="go" type="submit">Login</button>
+    </form>
+
+    <details class="help">
+      <summary>Where do I find my User ID?</summary>
+      <ol>
+        <li>Discord: Settings, then Advanced, then turn on Developer Mode.</li>
+        <li>Open your profile, tap the three dots, and choose Copy User ID.</li>
+      </ol>
+    </details>
+  </section>
+</main>
+
+<script>
+  let mode = 'login';
+  const tabs = document.querySelectorAll('.tabs button');
+  const form = document.getElementById('form');
+  const uid = document.getElementById('uid');
+  const err = document.getElementById('err');
+  const go = document.getElementById('go');
+
+  fetch('/api/me').then(r => { if (r.ok) location.replace('/dashboard.html'); });
+
+  tabs.forEach(t => t.addEventListener('click', () => {
+    mode = t.dataset.mode;
+    tabs.forEach(x => x.setAttribute('aria-selected', String(x === t)));
+    go.textContent = mode === 'register' ? 'Register' : 'Login';
+    err.textContent = '';
+  }));
+
+  uid.addEventListener('input', () => { uid.value = uid.value.replace(/\D/g, ''); });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.textContent = '';
+    const userId = uid.value.trim();
+    if (!/^\d{17,20}$/.test(userId)) { err.textContent = 'Enter a valid Discord User ID (17 to 20 digits).'; return; }
+    go.disabled = true;
+    const label = go.textContent;
+    go.textContent = 'Sending code...';
+    try {
+      const r = await fetch('/api/request-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, mode })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Something went wrong.');
+      location.href = `/verify.html?id=${userId}&mode=${mode}`;
+    } catch (ex) {
+      err.textContent = ex.message;
+      go.disabled = false;
+      go.textContent = label;
+    }
+  });
+</script>
+</body>
+</html>

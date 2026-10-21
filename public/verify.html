@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enter your code</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="shell">
+  <section class="card">
+    <h1>Check your Discord DMs</h1>
+    <p class="sub">The bot sent a 6-digit code. Copy it and paste it here.</p>
+
+    <div class="code-row" id="row">
+      <input inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Digit 1">
+      <input inputmode="numeric" maxlength="1" aria-label="Digit 2">
+      <input inputmode="numeric" maxlength="1" aria-label="Digit 3">
+      <input inputmode="numeric" maxlength="1" aria-label="Digit 4">
+      <input inputmode="numeric" maxlength="1" aria-label="Digit 5">
+      <input inputmode="numeric" maxlength="1" aria-label="Digit 6">
+    </div>
+    <p class="err" id="err" role="alert"></p>
+    <button class="btn" id="go" type="button" disabled>Confirm code</button>
+
+    <div class="row">
+      <span>No code yet? <button class="link" id="resend" type="button" disabled>Send a new code</button></span>
+      <a class="link" href="/">Back</a>
+    </div>
+    <p class="note">The code expires in 5 minutes. Make sure you share a server with the bot and allow DMs from server members.</p>
+  </section>
+</main>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const userId = params.get('id') || '';
+  const mode = params.get('mode') === 'register' ? 'register' : 'login';
+  if (!/^\d{17,20}$/.test(userId)) location.replace('/');
+
+  const row = document.getElementById('row');
+  const boxes = [...row.querySelectorAll('input')];
+  const err = document.getElementById('err');
+  const go = document.getElementById('go');
+  const resend = document.getElementById('resend');
+  let busy = false;
+
+  const value = () => boxes.map(b => b.value).join('');
+
+  function sync() {
+    boxes.forEach(b => b.classList.toggle('filled', !!b.value));
+    go.disabled = busy || value().length !== 6;
+  }
+
+  function fill(digits) {
+    digits.split('').slice(0, 6).forEach((d, i) => { boxes[i].value = d; });
+    sync();
+    const next = boxes.findIndex(b => !b.value);
+    (next === -1 ? boxes[5] : boxes[next]).focus();
+    if (value().length === 6) submit();
+  }
+
+  boxes.forEach((b, i) => {
+    b.addEventListener('input', () => {
+      const digits = b.value.replace(/\D/g, '');
+      if (digits.length > 1) { b.value = ''; fill(digits); return; }
+      b.value = digits;
+      sync();
+      if (digits && i < 5) boxes[i + 1].focus();
+      if (value().length === 6) submit();
+    });
+    b.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !b.value && i > 0) boxes[i - 1].focus();
+      if (e.key === 'ArrowLeft' && i > 0) boxes[i - 1].focus();
+      if (e.key === 'ArrowRight' && i < 5) boxes[i + 1].focus();
+    });
+    b.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData.getData('text') || '').replace(/\D/g, '');
+      if (text) fill(text);
+    });
+    b.addEventListener('focus', () => b.select());
+  });
+
+  async function submit() {
+    if (busy) return;
+    const code = value();
+    if (code.length !== 6) return;
+    busy = true; sync(); err.textContent = '';
+    go.textContent = 'Checking...';
+    try {
+      const r = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, code })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Something went wrong.');
+      row.classList.add('done');
+      go.textContent = 'Logged in';
+      setTimeout(() => location.replace('/dashboard.html'), 700);
+    } catch (ex) {
+      err.textContent = ex.message;
+      row.classList.remove('bad'); void row.offsetWidth; row.classList.add('bad');
+      boxes.forEach(b => b.value = '');
+      busy = false; go.textContent = 'Confirm code'; sync();
+      boxes[0].focus();
+    }
+  }
+  go.addEventListener('click', submit);
+
+  // resend with cooldown
+  let left = 30, timer;
+  function tick() {
+    resend.disabled = left > 0;
+    resend.textContent = left > 0 ? `Send a new code (${left}s)` : 'Send a new code';
+    if (left > 0) { left--; timer = setTimeout(tick, 1000); }
+  }
+  tick();
+  resend.addEventListener('click', async () => {
+    err.textContent = '';
+    resend.disabled = true;
+    try {
+      const r = await fetch('/api/request-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, mode })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Something went wrong.');
+      err.textContent = '';
+      boxes.forEach(b => b.value = ''); sync(); boxes[0].focus();
+      left = 30; clearTimeout(timer); tick();
+    } catch (ex) {
+      err.textContent = ex.message;
+      resend.disabled = false;
+    }
+  });
+
+  boxes[0].focus();
+</script>
+</body>
+</html>

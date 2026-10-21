@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="shell">
+  <section class="card">
+    <h1>You're logged in</h1>
+    <div class="profile">
+      <img class="avatar" id="avatar" alt="">
+      <div>
+        <strong id="name">Loading...</strong>
+        <span id="id"></span>
+      </div>
+    </div>
+    <p class="sub">This is your protected page. Build your dashboard here.</p>
+    <button class="btn ghost" id="logout" type="button">Log out</button>
+  </section>
+</main>
+
+<script>
+  fetch('/api/me').then(async (r) => {
+    if (!r.ok) return location.replace('/');
+    const me = await r.json();
+    document.getElementById('name').textContent = me.username || 'Discord user';
+    document.getElementById('id').textContent = 'ID: ' + me.id;
+    const img = document.getElementById('avatar');
+    if (me.avatar) img.src = me.avatar; else img.remove();
+  });
+  document.getElementById('logout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    location.replace('/');
+  });
+</script>
+</body>
+</html>
